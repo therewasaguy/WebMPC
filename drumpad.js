@@ -1,6 +1,8 @@
 var mode = 'play';
-var modeButton;
+var modeButton, setButton; 
 var colorPalette;
+var mic;
+var recorder;
 
 var drumpad = function( sketch ) {
   var sample;
@@ -48,8 +50,15 @@ var drumpad = function( sketch ) {
       if (recording === false) {
         sketch.background(255,0,0);
         recording = true;
+        recorder = new Recorder(mic);
+        if (mic.getLevel() > .00) {
+          recorder.record();
+          console.log('recording!');
+        }
       } else {
         recording = false;
+        recorder.stop();
+        recorder.getBuffer(sketch.decodeBuffer);
       }
     }
   };
@@ -61,6 +70,33 @@ var drumpad = function( sketch ) {
     amp.setInput(sample);
     amp.toggleNormalize();
   };
+
+  sketch.decodeBuffer = function(buf) {
+    // create an AudioBuffer of the appropriate size and # of channels,
+    // and copy the data from one Float32 buffer to another
+    console.log(buf);
+    var audioContext = getAudioContext();
+    var newAudioBuff = audioContext.createBuffer(2, buf[0].length, audioContext.sampleRate);
+      // for (var channelNum = 0; channelNum < audioBuffer.numberOfChannels; channelNum++){
+      //   var channel = audioBuffer.getChannelData(channelNum);
+      //   channel.set(audioBuffer[channelNum]);
+      // }
+      console.log(newAudioBuff);
+    var channel = newAudioBuff.getChannelData(0);
+    channel.set(buf[0]);
+    console.log(channel);
+    // channel.set(AudioBuffer);
+    // channel.set(AudioBuffer[1]);
+//      return audioBuffer;
+    sample.buffer = newAudioBuff;
+  };
+  //   sample.p5s.audiocontext.decodeAudioData(wav, function(buff) {
+  //     sample.buffer = wav;
+  //     console.log(wav);
+  //     console.log(buff);
+  //     recorder.clear();
+  //   });
+  // };
 
 };
 
@@ -75,6 +111,7 @@ window.onload = function() {
 
 function setup(){
   createGUI();
+  mic = new AudioIn();
 }
 
 function draw(){
@@ -89,6 +126,7 @@ var createGUI = function() {
 var toggleMode = function(){
   if (mode === 'play') {
     mode = 'rec';
+    mic.on();
   }
   else {
     mode = 'play';
