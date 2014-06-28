@@ -1748,9 +1748,9 @@ var p5SOUND = (function(){
     if (p5sound.inputSources.length > 0) {
       return p5sound.inputSources;
     } else {
-      return "This browser does not support MediaStreamTrack.getSources()";
+      return 'This browser does not support MediaStreamTrack.getSources()';
     }
-  }
+  };
 
   /**
    *  Set the input source. Accepts a number representing a
@@ -1771,15 +1771,15 @@ var p5SOUND = (function(){
       self.currentSource = num;
       console.log('set source to ' + p5sound.inputSources[self.currentSource].id);
     } else {
-      console.log('unable to set input source')
+      console.log('unable to set input source');
     }
-  }
+  };
 
   p5.prototype.AudioIn.prototype.disconnect = function(unit) {
       this.output.disconnect(unit);
       // stay connected to amplitude even if not outputting to p5
       this.output.connect(this.amplitude.input);
-  }
+  };
 
   /**
    *  <p>Read the Amplitude (volume level) of an AudioIn. The AudioIn
@@ -1801,7 +1801,7 @@ var p5SOUND = (function(){
       this.amplitude.smoothing = smoothing;
     }
     return this.amplitude.getLevel();
-  }
+  };
 
   /**
    *  Turn the AudioIn on. This enables the use of other AudioIn
@@ -1829,7 +1829,7 @@ var p5SOUND = (function(){
         self.mediaStream.connect(self.output);
 
         // only send to the Amplitude reader, so we can see it but not hear it.
-        self.amplitude.setInput(mic);
+        self.amplitude.setInput(self.output);
       }, this._onStreamError = function(stream) {
         console.error(e);
       });
@@ -1837,19 +1837,19 @@ var p5SOUND = (function(){
     // if Firefox where users select their source via browser
     // if (typeof MediaStreamTrack.getSources === 'undefined') {
       // Only get the audio stream.
-      navigator.getUserMedia( {"audio":true},
+      window.navigator.getUserMedia( {'audio':true},
         this._onStream = function(stream) {
         self.stream = stream;
         // Wrap a MediaStreamSourceNode around the live input
         self.mediaStream = self.p5s.audiocontext.createMediaStreamSource(stream);
         self.mediaStream.connect(self.output);
         // only send to the Amplitude reader, so we can see it but not hear it.
-        self.amplitude.setInput(mic);
+        self.amplitude.setInput(self.output);
       }, this._onStreamError = function(stream) {
         console.error(e);
       });
     }
-  }
+  };
 
   /**
    *  Turn the AudioIn off. If the AudioIn is off, it cannot getLevel().
@@ -1861,7 +1861,7 @@ var p5SOUND = (function(){
     if (this.stream) {
       this.stream.stop();
     }
-  }
+  };
 
   /**
    *  Add input sources to the list of available sources.
@@ -1876,17 +1876,11 @@ var p5SOUND = (function(){
         p5sound.inputSources.push(sourceInfo);
       }
     }
-  }
+  };
 
- p5.prototype.AudioIn.prototype.amp = function(vol){
+  p5.prototype.AudioIn.prototype.amp = function(vol){
     this.output.gain.value = vol;
-  }
-
-
-// =============================================================================
-//                              Envelope Class
-// =============================================================================
-
+  };
 
 
 })(); //call closure
