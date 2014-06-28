@@ -1,8 +1,12 @@
 var mode = 'play';
-var modeButton, setButton; 
+var settings = false;
+var modeButton, setButton;
+var modeButtonLabel = 'Switch to record mode'; 
 var colorPalette;
 var mic;
 var recorder;
+var fft;
+var pad1, pad2, pad3, pad4;
 
 var drumpad = function( sketch ) {
   var sample;
@@ -12,14 +16,26 @@ var drumpad = function( sketch ) {
   var recTime = 0;
   var amp = new Amplitude();
 
+  // settings for this pad
+  var newRate;
+  var rateSlider = createSlider(0,100,50);
+  var revButton = createButton('Reverse');
+  var settingsText;
+
   sketch.setup = function() {
     cnv = sketch.createCanvas(400, 400);
     cnv.mousePressed(sketch.pressed);
+    revButton.mousePressed(sketch.revBuffer);
     sketch.background(sketch.random(0,255));
   };
 
   sketch.draw = function() {
     if (mode === 'play'){
+
+      // reset the mic amplitude's volMax
+      mic.amplitude.volMax = .1;
+
+      sketch.hideSettings();
       if (sample && !sample.isPlaying()){
         sketch.background(bgColor);
       }
@@ -36,10 +52,48 @@ var drumpad = function( sketch ) {
       }
     } else if (mode === 'rec') {
       if (recording) {
-        sketch.text('Recording!' + recTime);
-      } else {
+
+        // if waiting for attack...
+        if (recording === 'preAttack') {
+          sketch.text('Make Some Noiz!' + recTime, sketch.width/2, sketch.height/2);
+          if (mic.getLevel() > .5) {
+            recorder.record();
+            recording = true;
+          }
+        }
+
+        //
+        else if (recording === true ) {
+          sketch.text('Recording!' + recTime, sketch.width/2, sketch.height/2);
+          // draw waveform if recording
+          var waveform = fft.waveform();
+          sketch.beginShape();
+          sketch.background(255,0,0,200);
+          for (var i = 0; i< waveform.length; i++){
+            var x = map(i, 0, waveform.length, 0, sketch.width);
+            var y = map(waveform[i], 0, 255, sketch.height, 0);
+            sketch.vertex(x,y);
+          }
+          sketch.endShape();
+
+          // if volume is below a certain threshold, we are done recording
+          if (mic.getLevel() < .0125) {
+            recording = false;
+            recorder.stop();
+            recorder.getBuffer(sketch.decodeBuffer);
+            // back to play mode!
+            toggleMode();
+          }
+        } else {
         sketch.background(bgColor);
+        }
       }
+    } else if (mode === 'settings') {
+      sketch.showSettings();
+      newRate = map( rateSlider.value() , 0, 100, .2, 2);
+      console.log('rateSlider: ' + rateSlider.value() + ' newRate: ' + newRate);
+      sample.rate( newRate );
+      settingsText;
     }
   };
 
@@ -48,88 +102,163 @@ var drumpad = function( sketch ) {
       sample.play();
     } else if (mode === 'rec') {
       if (recording === false) {
-        sketch.background(255,0,0);
-        recording = true;
-        recorder = new Recorder(mic);
-        if (mic.getLevel() > .00) {
-          recorder.record();
-          console.log('recording!');
+        sketch.background(255,0,0,200);
+        if (mic.getLevel() > .01) {
+          // record on attack
+          recording = 'preAttack';
+          // recording = true;
+          // recorder.record();
+          // console.log('recording!');
         }
       } else {
         recording = false;
         recorder.stop();
         recorder.getBuffer(sketch.decodeBuffer);
+        // back to play mode!
+        toggleMode();
       }
     }
   };
 
   sketch.setSample = function(s) {
     sample = sketch.loadSound(s);
+    sample.playMode('mono');
     // sample.rate(.5);
     sketch.text(sample.url, sketch.width/2, sketch.height/2);
     amp.setInput(sample);
     amp.toggleNormalize();
   };
 
+  // reset the buffer for this sketch's sample using data from the recorder
   sketch.decodeBuffer = function(buf) {
     // create an AudioBuffer of the appropriate size and # of channels,
     // and copy the data from one Float32 buffer to another
     console.log(buf);
-    var audioContext = getAudioContext();
-    var newAudioBuff = audioContext.createBuffer(2, buf[0].length, audioContext.sampleRate);
-      // for (var channelNum = 0; channelNum < audioBuffer.numberOfChannels; channelNum++){
-      //   var channel = audioBuffer.getChannelData(channelNum);
-      //   channel.set(audioBuffer[channelNum]);
-      // }
-      console.log(newAudioBuff);
-    var channel = newAudioBuff.getChannelData(0);
-    channel.set(buf[0]);
-    console.log(channel);
-    // channel.set(AudioBuffer);
-    // channel.set(AudioBuffer[1]);
-//      return audioBuffer;
-    sample.buffer = newAudioBuff;
+    var audioContext = sketch.getAudioContext();
+    var newBuffer = audioContext.createBuffer(2, buf[0].length, audioContext.sampleRate);
+    for (var channelNum = 0; channelNum < newBuffer.numberOfChannels; channelNum++){
+      var channel = newBuffer.getChannelData(channelNum);
+      channel.set(buf[channelNum]);
+      console.log(channel);
+    }
+    sample.buffer = newBuffer;
+    recorder.clear();
   };
-  //   sample.p5s.audiocontext.decodeAudioData(wav, function(buff) {
-  //     sample.buffer = wav;
-  //     console.log(wav);
-  //     console.log(buff);
-  //     recorder.clear();
-  //   });
-  // };
 
-};
+  sketch.revBuffer = function() {
+    console.log('reversed!');
+    sample.reverseBuffer();
+  };
 
-window.onload = function() {
-    var containerNode = document.getElementById( 'pad1' );
-    var pad1 = new p5(drumpad, containerNode);
-    var containerNode2 = document.getElementById( 'pad2' );
-    var pad2 = new p5(drumpad, containerNode2);
-    pad1.setSample('audio/drum2.wav');
-    pad2.setSample('audio/drum6.wav');
-};
+
+  sketch.settingsPosition = function(w, h){
+    sketch.stroke(255);
+    settingsText = text('Playback Rate: ' + newRate, w/2, h/2-100);
+    rateSlider.position(w/2, h/2);
+    revButton.position(w/2, h/2+100)
+    cnv.position(w-400,h-400);
+    console.log(rateSlider);
+  };
+
+  sketch.showSettings = function() {
+    sketch.background(25);
+    rateSlider.show();
+    revButton.show();
+  };
+
+  sketch.hideSettings = function() {
+    rateSlider.hide();
+    revButton.hide();
+  };
+
+}; // end drumpad
+
+
 
 function setup(){
   createGUI();
   mic = new AudioIn();
+  mic.on();
+  mic.amplitude.toggleNormalize();
+  fft = new FFT(.1, 128);
+  fft.setInput(mic);
+  recorder = new Recorder(mic);
 }
 
 function draw(){
-  modeButton.html('CURRENT MODE: ' + mode);
+  modeButton.html(modeButtonLabel);
 }
+
+function keyPressed(e){
+  console.log(e.keyCode);
+  if (e.keyCode == '37') {
+    pad2.pressed();
+  };
+  if (e.keyCode == '39') {
+    pad4.pressed();
+  };
+  if (e.keyCode == '65') {
+    pad1.pressed();
+  };
+  if (e.keyCode == '68') {
+    pad3.pressed();
+  };
+};
 
 var createGUI = function() {
-  modeButton = createButton('CURRENT MODE: ' + mode);
+  modeButton = createButton(modeButtonLabel);
+  modeButton.position(800,20);
   modeButton.mousePressed(toggleMode);
-}
+
+  setButton = createButton('Settings');
+  setButton.position(800,40);
+  setButton.mousePressed(toggleSettings);
+
+};
 
 var toggleMode = function(){
-  if (mode === 'play') {
+  if (mode !== 'rec') {
     mode = 'rec';
-    mic.on();
+    modeButtonLabel = 'Click a pad to record!'
   }
   else {
     mode = 'play';
+    modeButtonLabel = 'Switch to record mode';
   }
-  console.log(mode);
-}
+};
+
+var toggleSettings = function(){
+  if (mode !== 'settings') {
+    mode = 'settings';
+    setButton.html('Back to Play Mode');
+  }
+  else {
+    mode = 'play';
+    setButton.html('Settings');
+  }
+};
+
+
+
+// Set up the pads!
+window.onload = function() {
+    var containerNode = document.getElementById( 'pad1' );
+    pad1 = new p5(drumpad, containerNode);
+    pad1.setSample('audio/drum2.mp3');
+    pad1.settingsPosition(400, 400);
+
+    var containerNode2 = document.getElementById( 'pad2' );
+    pad2 = new p5(drumpad, containerNode2);
+    pad2.setSample('audio/drum6.mp3');
+    pad2.settingsPosition(400, 800);
+
+    var containerNode3 = document.getElementById( 'pad3' );
+    pad3 = new p5(drumpad, containerNode3);
+    pad3.setSample('audio/drum5.mp3');
+    pad3.settingsPosition(800, 400);
+
+    var containerNode4 = document.getElementById( 'pad4' );
+    pad4 = new p5(drumpad, containerNode4);
+    pad4.setSample('audio/drum4.mp3');
+    pad4.settingsPosition(800, 800);
+};

@@ -1,26 +1,19 @@
 
 /**
- * Version .0003
+ * <h1>Version .0003</h1>
  *
- * p5.sound by Jason Sigal (jasonsigal.cc) for the
- * Processing Foundation & Google Summer of Code 2014.
+ * <p>p5.sound by Jason Sigal (jasonsigal.cc) for the
+ * Processing Foundation & Google Summer of Code 2014.</p>
  * 
- * This is an addon for p5.js that extends p5 with the following classes:
- *   SoundOut
- *   SoundFile
- *   Amplitude
- *   FFT
- *   Oscillator (SinOsc, SqrOsc, SawOsc, TriOsc, Pulse)
- *   AudioIn
- *    ... more soon!
+ * <p>This is an addon that extends p5 to work with sound.<br>
+ * <a href="https://github.com/therewasaguy/p5.js/blob/p5sound/lib/addons/p5.sound.js">DOWNLOAD HERE.</a></p>
  *  
- * Incorporates elements from:
- *   - TONE.js (c) Yotam Mann, 2014. Licensed under The MIT License (MIT). https://github.com/TONEnoTONE/Tone.js
- *   - buzz.js (c) Jay Salvat, 2013. Licensed under The MIT License (MIT). http://buzz.jaysalvat.com/
- *   - Boris Smus Web Audio API book, 2013. Licensed under the Apache License http://www.apache.org/licenses/LICENSE-2.0
- *   - wavesurfer.js
- *   - recorder.js (hopefully soon!)
- *   - Wilm Thoben's Sound library for Processing
+ * <p>Incorporates elements from:<br>
+ *   - <a href="https://github.com/TONEnoTONE/Tone.js">TONE.js</a> (c) Yotam Mann, 2014. Licensed under The MIT License (MIT).<br />
+ *   - <a href="http://buzz.jaysalvat.com/">buzz.js</a> (c) Jay Salvat, 2013. Licensed under The MIT License (MIT).<br />
+ *   - <a href="http://www.apache.org/licenses/LICENSE-2.0">Boris Smus Web Audio API book</a>, 2013. Licensed under the Apache License<br />
+ *   - <a href="https://github.com/katspaugh/wavesurfer.js">wavesurfer.js</a><br />
+ *   - <a href="https://github.com/wirsing/processingsound">Wilm Thoben's Sound library for Processing</a>
  *
  * @module p5.sound
  * @main
@@ -1233,7 +1226,7 @@ var p5SOUND = (function(){
 
     // default connections to p5sound master
     this.p5s.output.connect(this.analyser);
-    this.analyser.connect(this.p5s.audiocontext.destination);
+    // this.analyser.connect(this.p5s.audiocontext.destination);
 
     this.analyser.maxDecibels = maxDecibels || 0;
     this.analyser.minDecibels = minDecibels || -140;
@@ -1249,6 +1242,7 @@ var p5SOUND = (function(){
   // change input from default (p5)
   p5.prototype.FFT.prototype.setInput = function(source) {
     source.connect(this.analyser);
+    this.analyser.disconnect();
   };
 
   /**
