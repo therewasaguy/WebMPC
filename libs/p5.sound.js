@@ -117,8 +117,8 @@ var p5SOUND = (function(){
 
     //put a hard limiter on the output
     this.limiter = audiocontext.createDynamicsCompressor();
-    this.limiter.threshold.value = 0;
-    this.limiter.ratio.value = 100;
+    this.limiter.threshold.value = -1;
+    this.limiter.ratio.value = 20;
 
     this.audiocontext = audiocontext;
 
@@ -502,7 +502,8 @@ var p5SOUND = (function(){
     } else {
       throw 'Invalid play mode. Must be either "mono" or "poly"';
     }
-  }
+  };
+
   /**
    * Toggle whether a sound file is playing or paused.
    * 
@@ -658,6 +659,15 @@ var p5SOUND = (function(){
       }
     this.playing = false;
     }
+  };
+
+  /**
+   *  set output volume between 0 (silent) and 1.0
+   *  
+   *  @param {Number} volume
+   */
+  p5.prototype.SoundFile.prototype.setVolume = function(vol) {
+    this.output.gain.value = vol;
   };
 
   /**

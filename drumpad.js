@@ -19,13 +19,18 @@ var drumpad = function( sketch ) {
   // settings for this pad
   var newRate;
   var rateSlider = createSlider(0,100,29);
+  var volSlider = createSlider(0,100,50);
   var revButton = createButton('Reverse');
+  var loopButton = createButton('Loop');
+  var rateLabel = createP();
+  var volLabel = createP();
   var settingsText;
 
   sketch.setup = function() {
     cnv = sketch.createCanvas(400, 400);
     cnv.mousePressed(sketch.pressed);
     revButton.mousePressed(sketch.revBuffer);
+    loopButton.mousePressed(sketch.toggleLoop);
     sketch.background(sketch.random(0,255));
   };
 
@@ -36,26 +41,23 @@ var drumpad = function( sketch ) {
       mic.amplitude.volMax = .1;
 
       sketch.hideSettings();
-      if (sample && !sample.isPlaying()){
-        sketch.background(bgColor);
-      }
-      else if (sample && sample.isPlaying()) {
-        // set background color based on track volume
-        sketch.background(bgColor)
-        if (amp.getLevel() > .00) {
-          var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
-          alpha = constrain(alpha, 0,255);
-          sketch.background(255,255,0, alpha);
-          console.log('bang!');
-        }
-
-      }
+      // if (sample && !sample.isPlaying()){
+        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
+        alpha = constrain(alpha, 0,255);
+        sketch.background(bgColor[0], bgColor[1], bgColor[2], alpha);
+        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
+        alpha = constrain(alpha, 0,10);
+        sketch.background(0,0,0, alpha);
     } else if (mode === 'rec') {
       if (recording) {
 
         // if waiting for attack...
         if (recording === 'preAttack') {
-          sketch.text('Make Some Noiz!' + recTime, sketch.width/2, sketch.height/2);
+          sketch.background(255,0,0,200);
+          sketch.noStroke();
+          sketch.textSize(48);
+          sketch.textAlign(CENTER);
+          sketch.text('Make Some Noiz!', sketch.width/2, sketch.height/2);
           if (mic.getLevel() > .5) {
             recorder.record();
             recording = true;
@@ -64,7 +66,6 @@ var drumpad = function( sketch ) {
 
         //
         else if (recording === true ) {
-          sketch.text('Recording!' + recTime, sketch.width/2, sketch.height/2);
           // draw waveform if recording
           var waveform = fft.waveform();
           sketch.beginShape();
@@ -92,15 +93,18 @@ var drumpad = function( sketch ) {
       sketch.showSettings();
       newRate = map( rateSlider.value() , 0, 100, .1831, 3);
       sample.rate( newRate );
+      volLabel.html('volume: ' + volSlider.value() + '%');
+      rateLabel.html('rate: ' + newRate.toFixed(2));
+      // get volume from slider
+      var newVol = volSlider.value()/100;
+      sample.setVolume(newVol);
       settingsText;
-      // if (amp.getLevel() > .00) {
-        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
-        alpha = constrain(alpha, 0,255);
-        sketch.background(255,255,0, alpha);
-        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
-        alpha = constrain(alpha, 0,10);
-        sketch.background(0,0,0, alpha);
-      // }
+      var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
+      alpha = constrain(alpha, 0,255);
+      sketch.background(bgColor[0], bgColor[1], bgColor[2], alpha);
+      var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
+      alpha = constrain(alpha, 0,10);
+      sketch.background(0,0,0, alpha);
     }
   };
 
@@ -114,9 +118,6 @@ var drumpad = function( sketch ) {
         if (mic.getLevel() > .01) {
           // record on attack
           recording = 'preAttack';
-          // recording = true;
-          // recorder.record();
-          // console.log('recording!');
         }
       } else {
         recording = false;
@@ -131,10 +132,7 @@ var drumpad = function( sketch ) {
   sketch.setSample = function(s) {
     sample = sketch.loadSound(s);
     sample.volume = .5;
-    sample.setLoop(true);
     sample.playMode('mono');
-    // sample.rate(.5);
-    sketch.text(sample.url, sketch.width/2, sketch.height/2);
     amp.setInput(sample.output);
     amp.toggleNormalize();
   };
@@ -144,17 +142,16 @@ var drumpad = function( sketch ) {
     sample.buffer = buf;
     recorder.clear();
   };
+
   // reset the buffer for this sketch's sample using data from the recorder
   sketch.decodeBuffer = function(buf) {
     // create an AudioBuffer of the appropriate size and # of channels,
     // and copy the data from one Float32 buffer to another
-    console.log(buf);
     var audioContext = sketch.getAudioContext();
     var newBuffer = audioContext.createBuffer(2, buf[0].length, audioContext.sampleRate);
     for (var channelNum = 0; channelNum < newBuffer.numberOfChannels; channelNum++){
       var channel = newBuffer.getChannelData(channelNum);
       channel.set(buf[channelNum]);
-      console.log(channel);
     }
     sample.buffer = newBuffer;
     recorder.clear();
@@ -165,25 +162,49 @@ var drumpad = function( sketch ) {
     sample.reverseBuffer();
   };
 
+  sketch.toggleLoop = function() {
+    if (sample.isLooping()){
+      sample.setLoop(false);
+      loopButton.html('Loop');
+    }
+    else {
+      sample.setLoop(true);
+      loopButton.html('No Loop');
+    }
+  };
 
+  // set position of Buttons and Sliders
   sketch.settingsPosition = function(w, h){
     sketch.stroke(255);
-    settingsText = text('Playback Rate: ' + newRate, w/2, h/2-100);
-    rateSlider.position(w/2, h/2);
-    revButton.position(w/2, h/2+100)
+//    settingsText = text('Playback Rate: ' + newRate, w/2, h/2-100);
+    rateLabel = createP('rate: ');
+    rateLabel.position(w-350, h-90);
+    rateSlider.position(w-350, h-50);
+    volSlider.position(w-200, h-50);
+    volLabel = createP('volume: ');
+    volLabel.position(w-200, h-90);
+
+    revButton.position(w-350, h-100)
+    loopButton.position(w-200, h-100);
     cnv.position(w-400,h-400);
-    console.log(rateSlider);
   };
 
   sketch.showSettings = function() {
-    // sketch.background(25);
     rateSlider.show();
+    volSlider.show();
     revButton.show();
+    loopButton.show();
+    rateLabel.show();
+    volLabel.show();
   };
 
   sketch.hideSettings = function() {
     rateSlider.hide();
+    volSlider.hide();
     revButton.hide();
+    loopButton.hide();
+    rateLabel.hide();
+    volLabel.hide();
   };
 
 }; // end drumpad
@@ -205,7 +226,6 @@ function draw(){
 }
 
 function keyPressed(e){
-  console.log(e.keyCode);
   if (e.keyCode == '37') {
     pad2.pressed();
   };
@@ -218,6 +238,9 @@ function keyPressed(e){
   if (e.keyCode == '68') {
     pad3.pressed();
   };
+  if (e.keyCode == '9') { // TAB: ToggleSettings
+    toggleSettings();
+  }
 };
 
 var createGUI = function() {
@@ -255,7 +278,7 @@ var toggleSettings = function(){
 
 
 
-// Set up the pads!
+// Set up drum pads and position them on the page
 window.onload = function() {
     var containerNode = document.getElementById( 'pad1' );
     pad1 = new p5(drumpad, containerNode);
