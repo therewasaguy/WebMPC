@@ -46,7 +46,6 @@ var drumpad = function( sketch ) {
           var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
           alpha = constrain(alpha, 0,255);
           sketch.background(255,255,0, alpha);
-          console.log(alpha);
         }
 
       }
@@ -94,6 +93,11 @@ var drumpad = function( sketch ) {
       console.log('rateSlider: ' + rateSlider.value() + ' newRate: ' + newRate);
       sample.rate( newRate );
       settingsText;
+      // if (amp.getLevel() > .00) {
+        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
+        alpha = constrain(alpha, 0,255);
+        sketch.background(0,0,0, alpha);
+      // }
     }
   };
 
@@ -129,6 +133,10 @@ var drumpad = function( sketch ) {
     amp.toggleNormalize();
   };
 
+
+  sketch.setBuffer = function(buf){
+    sample.buffer = buf;
+  }
   // reset the buffer for this sketch's sample using data from the recorder
   sketch.decodeBuffer = function(buf) {
     // create an AudioBuffer of the appropriate size and # of channels,
@@ -246,19 +254,33 @@ window.onload = function() {
     pad1 = new p5(drumpad, containerNode);
     pad1.setSample('audio/drum2.mp3');
     pad1.settingsPosition(400, 400);
+    containerNode.pCtx = pad1;
+    containerNode.addEventListener('dragover', handleDragOver, false);
+    containerNode.addEventListener('drop', handleFileSelect, false);
 
     var containerNode2 = document.getElementById( 'pad2' );
     pad2 = new p5(drumpad, containerNode2);
     pad2.setSample('audio/drum6.mp3');
     pad2.settingsPosition(400, 800);
+    containerNode2.pCtx = pad2;
+    containerNode2.addEventListener('dragover', handleDragOver, false);
+    containerNode2.addEventListener('drop', handleFileSelect, false);
+
 
     var containerNode3 = document.getElementById( 'pad3' );
     pad3 = new p5(drumpad, containerNode3);
     pad3.setSample('audio/drum5.mp3');
     pad3.settingsPosition(800, 400);
+    containerNode3.pCtx = pad3;
+    containerNode3.addEventListener('dragover', handleDragOver, false);
+    containerNode3.addEventListener('drop', handleFileSelect, false);
+
 
     var containerNode4 = document.getElementById( 'pad4' );
     pad4 = new p5(drumpad, containerNode4);
     pad4.setSample('audio/drum4.mp3');
     pad4.settingsPosition(800, 800);
+    containerNode4.pCtx = pad4;
+    containerNode4.addEventListener('dragover', handleDragOver, false);
+    containerNode4.addEventListener('drop', handleFileSelect, false);
 };
