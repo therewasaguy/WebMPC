@@ -18,7 +18,7 @@ var drumpad = function( sketch ) {
 
   // settings for this pad
   var newRate;
-  var rateSlider = createSlider(0,100,50);
+  var rateSlider = createSlider(0,100,29);
   var revButton = createButton('Reverse');
   var settingsText;
 
@@ -46,6 +46,7 @@ var drumpad = function( sketch ) {
           var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
           alpha = constrain(alpha, 0,255);
           sketch.background(255,255,0, alpha);
+          console.log('bang!');
         }
 
       }
@@ -89,23 +90,26 @@ var drumpad = function( sketch ) {
       }
     } else if (mode === 'settings') {
       sketch.showSettings();
-      newRate = map( rateSlider.value() , 0, 100, .2, 2);
-      console.log('rateSlider: ' + rateSlider.value() + ' newRate: ' + newRate);
+      newRate = map( rateSlider.value() , 0, 100, .1831, 3);
       sample.rate( newRate );
       settingsText;
       // if (amp.getLevel() > .00) {
-        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
+        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
         alpha = constrain(alpha, 0,255);
+        sketch.background(255,255,0, alpha);
+        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
+        alpha = constrain(alpha, 0,10);
         sketch.background(0,0,0, alpha);
       // }
     }
   };
 
   sketch.pressed = function() {
-    if (mode === 'play') {
+    if (mode === 'play' || mode === 'settings') {
       sample.play();
     } else if (mode === 'rec') {
       if (recording === false) {
+        sample.stopAll();
         sketch.background(255,0,0,200);
         if (mic.getLevel() > .01) {
           // record on attack
@@ -126,17 +130,20 @@ var drumpad = function( sketch ) {
 
   sketch.setSample = function(s) {
     sample = sketch.loadSound(s);
+    sample.volume = .5;
+    sample.setLoop(true);
     sample.playMode('mono');
     // sample.rate(.5);
     sketch.text(sample.url, sketch.width/2, sketch.height/2);
-    amp.setInput(sample);
+    amp.setInput(sample.output);
     amp.toggleNormalize();
   };
 
 
   sketch.setBuffer = function(buf){
     sample.buffer = buf;
-  }
+    recorder.clear();
+  };
   // reset the buffer for this sketch's sample using data from the recorder
   sketch.decodeBuffer = function(buf) {
     // create an AudioBuffer of the appropriate size and # of channels,
@@ -169,7 +176,7 @@ var drumpad = function( sketch ) {
   };
 
   sketch.showSettings = function() {
-    sketch.background(25);
+    // sketch.background(25);
     rateSlider.show();
     revButton.show();
   };
