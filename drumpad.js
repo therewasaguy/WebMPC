@@ -24,7 +24,6 @@ var drumpad = function( sketch ) {
   var loopButton = createButton('Loop');
   var rateLabel = createP();
   var volLabel = createP();
-  var settingsText;
 
   sketch.setup = function() {
     cnv = sketch.createCanvas(400, 400);
@@ -41,13 +40,7 @@ var drumpad = function( sketch ) {
       mic.amplitude.volMax = .1;
 
       sketch.hideSettings();
-      // if (sample && !sample.isPlaying()){
-        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
-        alpha = constrain(alpha, 0,255);
-        sketch.background(bgColor[0], bgColor[1], bgColor[2], alpha);
-        var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
-        alpha = constrain(alpha, 0,10);
-        sketch.background(0,0,0, alpha);
+      sketch.drawBackground();
     } else if (mode === 'rec') {
       if (recording) {
 
@@ -98,15 +91,21 @@ var drumpad = function( sketch ) {
       // get volume from slider
       var newVol = volSlider.value()/100;
       sample.setVolume(newVol);
-      settingsText;
-      var alpha = floor(map(amp.getLevel(), 0, .2, 10, 255));
-      alpha = constrain(alpha, 0,255);
-      sketch.background(bgColor[0], bgColor[1], bgColor[2], alpha);
-      var alpha = floor(map(amp.getLevel(), 0, .2, 10, 50));
-      alpha = constrain(alpha, 0,10);
-      sketch.background(0,0,0, alpha);
+      sketch.drawBackground();
+    }
+    if (mode !== 'rec') {
+      sketch.drawBuffer();
     }
   };
+
+  sketch.drawBackground = function() {
+      var alpha = floor(map(amp.getLevel(), 0, .2, 20, 255));
+      alpha = constrain(alpha, 0,255);
+      sketch.background(bgColor[0], bgColor[1], bgColor[2], alpha);
+      var alpha = floor(map(amp.getLevel(), 0, .2, 20, 50));
+      alpha = constrain(alpha, 0,10);
+      sketch.background(0,0,0, alpha);
+  }
 
   sketch.pressed = function() {
     if (mode === 'play' || mode === 'settings') {
@@ -153,12 +152,10 @@ var drumpad = function( sketch ) {
       var channel = newBuffer.getChannelData(channelNum);
       channel.set(buf[channelNum]);
     }
-    sample.buffer = newBuffer;
-    recorder.clear();
+    sketch.setBuffer(newBuffer);
   };
 
   sketch.revBuffer = function() {
-    console.log('reversed!');
     sample.reverseBuffer();
   };
 
@@ -173,10 +170,23 @@ var drumpad = function( sketch ) {
     }
   };
 
-  // set position of Buttons and Sliders
+  sketch.drawBuffer = function() {
+    if (sample && sample.isLoaded()){
+      var waveform = sample.getPeaks(1600);
+      // sketch.fill();
+      sketch.stroke(255);
+      sketch.strokeWeight(1);
+      sketch.beginShape();
+      for (var i = 0; i< waveform.length; i++){
+        sketch.vertex(map(i, 0, waveform.length, 0, sketch.width), map(waveform[i], -1, 1, sketch.height, 0));
+      }
+      sketch.endShape();
+    }
+  };
+
+  // position this pad's GUI based on sketch position
   sketch.settingsPosition = function(w, h){
     sketch.stroke(255);
-//    settingsText = text('Playback Rate: ' + newRate, w/2, h/2-100);
     rateLabel = createP('rate: ');
     rateLabel.position(w-350, h-90);
     rateSlider.position(w-350, h-50);

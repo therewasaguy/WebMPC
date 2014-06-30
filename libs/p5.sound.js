@@ -410,11 +410,10 @@ var p5SOUND = (function(){
    *
    * @for p5.sound:SoundFile
    * @method play
-   * @param {Number} [rate]             (optional) playback rate
-   * @param {Number} [amp]              (optional) amplitude (volume) of playback
+   * @param {Number} [startTime]             (optional) startTime in seconds
+   * @param {Number} [endTime]              (optional) endTime in seconds
    */
-  p5.prototype.SoundFile.prototype.play = function(rate, amp) {
-    // TO DO: if already playing, create array of buffers for easy stop()
+  p5.prototype.SoundFile.prototype.play = function(startTime, endTime) {
     if (this.buffer) {
 
       // handle monophonic playmode
@@ -422,10 +421,33 @@ var p5SOUND = (function(){
         this.source.stop();
       }
 
+      if (startTime) {
+        if (startTime >=0 && startTime < this.buffer.duration){
+          this.startTime = startTime;
+        } else {
+          throw 'start time out of range'
+        }
+      }
+
+      if (endTime) {
+        if (endTime >=0 && endTime <= this.buffer.duration){
+          this.endTime = endTime;
+        } else {
+          throw 'end time out of range'
+        }
+      } else {
+        this.endTime = this.buffer.duration;
+      }
+
+
       // make a new source
       this.source = this.p5s.audiocontext.createBufferSource();
       this.source.buffer = this.buffer;
       this.source.loop = this.looping;
+      if (this.source.loop === true){
+        this.source.loopStart = this.startTime;
+        this.source.loopEnd = this.endTime;
+      }
       this.source.onended = function() {
         if (this.playing) {
           this.playing = !this.playing;
@@ -438,27 +460,27 @@ var p5SOUND = (function(){
         this.source.gain = this.p5s.audiocontext.createGain();
         this.source.connect(this.source.gain);
         // set local amp if provided, otherwise 1 and output.gain controls the gain
-        this.source.gain.gain.value = amp || 1;
+        this.source.gain.gain.value = 1;
         this.source.gain.connect(this.output); 
       }
       // chrome method of controlling gain without resetting volume
       else {
-        this.source.gain.value = amp || 1;
+        this.source.gain.value = 1;
         this.source.connect(this.output); 
       }
-      this.source.playbackRate.value = rate || Math.abs(this.playbackRate);
+      this.source.playbackRate.value = Math.abs(this.playbackRate);
 
 
       // play the sound
       if (this.paused){
-        this.source.start(0, this.pauseTime);
+        this.source.start(0, this.pauseTime, this.endTime);
 
         // flag for whether to use pauseTime or startTime to get currentTime()
         this.unpaused = true;
       }
       else {
         this.unpaused = false;
-        this.source.start(0, this.startTime);
+        this.source.start(0, this.startTime, this.endTime);
       }
       this.startSeconds = this.p5s.audiocontext.currentTime;
       this.playing = true;
@@ -548,12 +570,12 @@ var p5SOUND = (function(){
    *
    * @for p5.sound:SoundFile
    * @method loop
-   * @param {Number} [rate]             (optional) playback rate
-   * @param {Number} [amp]              (optional) playback volume
+   * @param {Number} [startTime]             (optional) startTime in seconds
+   * @param {Number} [endTime]              (optional) endTime in seconds
    */
-  p5.prototype.SoundFile.prototype.loop = function(rate, amp) {
+  p5.prototype.SoundFile.prototype.loop = function(loopStart, loopEnd) {
     this.looping = true;
-    this.play(rate, amp);
+    this.play(loopStart, loopEnd);
   };
 
   /**
@@ -790,14 +812,13 @@ var p5SOUND = (function(){
    * @param {Number} cueTime    cueTime of the soundFile in seconds.
    */
   p5.prototype.SoundFile.prototype.jump = function(cueTime) {
-    if ( (cueTime > 0) && (cueTime <= this.buffer.duration) ) {
-      this.startTime = cueTime;
+    if (cueTime<0 || cueTime > this.buffer.duration) {
+      throw 'jump time out of range';
     }
-    else if (!cueTime || cueTime === 0) {
-      this.startTime = 0;
-    }
-    else {
-      console.log('cue time out of range!');
+    this.startTime = cueTime || 0;
+    if (this.isPlaying()){
+      this.stop();
+      this.play(cueTime);
     }
   };
 
