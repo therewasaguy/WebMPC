@@ -694,7 +694,6 @@ var p5SOUND = (function(){
       this.pause();
       this.play();
     }
-
   };
 
   p5.prototype.SoundFile.prototype.getPlaybackRate = function() {
@@ -898,9 +897,9 @@ var p5SOUND = (function(){
     this.output.gain.value = vol;
   };
 
-  p5.prototype.SoundFile.prototype.fade = function() {
+  p5.prototype.SoundFile.prototype.fade = function(vol, t) {
     // TO DO
-    this.output.gain.linearRampToValueAtTime()
+    this.output.gain.linearRampToValueAtTime(vol, t)
   };
 
   p5.prototype.SoundFile.prototype.add = function() {
@@ -1379,8 +1378,8 @@ var p5SOUND = (function(){
    *  <code>new SawOsc(freq)</code>.
    *  </p>
    *  
-   * @class Oscillator
-   * @constructor
+   *  @class Oscillator
+   *  @constructor
    *  @param {[Number]} freq frequency defaults to 440Hz
    *  @param {[String]} type type of oscillator. Options:
    *                         'sine' (default), 'triangle',
@@ -1466,9 +1465,19 @@ var p5SOUND = (function(){
    *
    *  @method  amp
    *  @param  {Number} vol between 0 and 1.0
+   *  @param {Number} [time] ramp time (optional)
    */
-  p5.prototype.Oscillator.prototype.amp = function(vol){
-    this.output.gain.value = vol;
+  p5.prototype.Oscillator.prototype.amp = function(vol, t){
+    if (t) {
+      var rampTime = t || 0;
+      var currentVol = this.output.gain.value;
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(currentVol, this.p5s.audiocontext.currentTime);
+      this.output.gain.linearRampToValueAtTime(vol, rampTime + this.p5s.audiocontext.currentTime);
+    } else {
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(vol, this.p5s.audiocontext.currentTime);
+    }
   };
 
   p5.prototype.Oscillator.prototype.getAmp = function(){
@@ -1490,10 +1499,16 @@ var p5SOUND = (function(){
    */
   p5.prototype.Oscillator.prototype.freq = function(val, t){
     this.f = val;
-    var rampTime = t || 0;
-    this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
-    this.oscillator.frequency.exponentialRampToValueAtTime(val, rampTime + this.p5s.audiocontext.currentTime);
-    this.freq
+    if (t) {
+      var rampTime = t || 0;
+      var currentFreq = this.oscillator.frequency.value;
+      this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.oscillator.frequency.setValueAtTime(currentFreq, this.p5s.audiocontext.currentTime);
+      this.oscillator.frequency.exponentialRampToValueAtTime(val, rampTime + this.p5s.audiocontext.currentTime);
+    } else {
+      this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.oscillator.frequency.setValueAtTime(val, this.p5s.audiocontext.currentTime);
+    }
   };
 
   p5.prototype.Oscillator.prototype.getFreq = function(){
@@ -1661,10 +1676,6 @@ var p5SOUND = (function(){
     }
   };
 
-  p5.prototype.Pulse.prototype.amp = function(vol){
-    this.output.gain.value = vol;
-  };
-
   p5.prototype.Pulse.prototype.freq = function(val, t){
     var rampTime = t || 0;
     this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
@@ -1683,6 +1694,9 @@ var p5SOUND = (function(){
    *  does not connect to the master output, and oscillates at 1Hz. Use
    *  freqMod() to modulate the frequency of another oscillator, ampMod()
    *  to modulate the amplitude, and mod() to modulate any other parameter.
+   *  
+   *  @class Pulse
+   *  @constructor
    *  @param {[Number]} freq Frequency of the oscillator (1Hz by default)
    *  @param {[String]} type Type of oscillator (defaults to 'sine')
    */
@@ -1695,11 +1709,12 @@ var p5SOUND = (function(){
     this.output = this.p5s.audiocontext.createGain();
 
     // components
-    this.oscillator = this.p5s.audiocontext.createOscillator();
-    this.oscillator.frequency.value = freq || 1;
-    this.f = this.oscillator.frequency.value;
-    this.oscillator.type = type || 'sine';
-
+    if (!this.oscillator){
+      this.oscillator = this.p5s.audiocontext.createOscillator();
+      this.oscillator.frequency.value = freq || 1;
+      this.f = this.oscillator.frequency.value;
+      this.oscillator.type = type || 'sine';
+    }
     // set default output gain
     this.output.gain.value = 1;
 
@@ -1709,19 +1724,37 @@ var p5SOUND = (function(){
 
   p5.prototype.LFO.prototype = Object.create(p5.prototype.Oscillator.prototype);
 
-
+  /**
+   *  Frequency Modulation (FM): Modulate the frequency
+   *  of another signal with the frequency of this LFO.
+   *  Pass in the oscillator whose frequency you want to
+   *  modulate.
+   *
+   *  @method  ampMod
+   *  @param  {Object} oscillator The oscillator whose frequency will
+   *                              be modulated.
+   */
   p5.prototype.LFO.prototype.freqMod = function(unit){
     unit.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
-    this.output.connect(unit.oscillator.detune);
+    this.output.connect(unit.oscillator.frequency);
   };
 
+  /**
+   *  Amplitude Modulation (AM): Modulate the amplitude
+   *  of another signal with the frequency of this LFO.
+   *  Pass in the oscillator whose amplitude you want to
+   *  modulate.
+   *
+   *  @method  ampMod
+   *  @param  {Object} oscillator The oscillator whose amplitude will
+   *                              be modulated.
+   */
   p5.prototype.LFO.prototype.ampMod = function(unit){
-    // unit.output.cancelScheduledValues(this.p5s.audiocontext.currentTime);
-    this.output.connect(unit.output);
+    unit.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit.output.gain);
   };
 
   p5.prototype.LFO.prototype.disconnect = function(unit){
-    this.stop();
     this.output.disconnect(unit);
   };
 
@@ -1732,9 +1765,6 @@ var p5SOUND = (function(){
     this.oscillator.frequency.exponentialRampToValueAtTime(val, rampTime + this.p5s.audiocontext.currentTime);
   };
 
-  p5.prototype.LFO.prototype.amp = function(vol){
-    this.output.gain.value = vol;
-  };
 
 // =============================================================================
 //                              Noise Class
@@ -1743,14 +1773,18 @@ var p5SOUND = (function(){
 // =============================================================================
 
   /**
-   *  [Noise description]
-   *  @param {[type]} type [description]
+   *  Noise generates a buffer with random values.
+   *
+   *  @class Noise
+   *  @constructor
+   *  @param {[type]} type Type of noise can be 'white' (default),
+   *                       'brown' or 'pink'.
    */
   p5.prototype.Noise = function(type){
     this.started = false;
     this.p5s = p5sound;
 
-    this.buffer = _brownNoise;
+    this.buffer = _whiteNoise;
     this.output = this.p5s.audiocontext.createGain();
 
     // set default output gain
@@ -1833,15 +1867,14 @@ var p5SOUND = (function(){
   };
 
   p5.prototype.Noise.prototype.freqMod = function(unit){
-    // unit.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
-    this.output.connect(unit.oscillator.detune);
+    unit.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit.oscillator.frequency);
   };
 
   p5.prototype.Noise.prototype.ampMod = function(unit){
-    // unit.output.cancelScheduledValues(this.p5s.audiocontext.currentTime);
-    this.output.connect(unit.output);
+    unit.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit.output.gain);
   };
-
 
   p5.prototype.Noise.prototype.start = function() {
     this.noise = this.p5s.audiocontext.createBufferSource();
@@ -1885,10 +1918,6 @@ var p5SOUND = (function(){
     this.started = false;
   };
 
-  p5.prototype.Noise.prototype.amp = function(a) {
-    this.output.gain.value = a;
-  };
-
   p5.prototype.Noise.prototype.pan = function(pval) {
     this.panPosition = pval;
     pval = pval * 90.0;
@@ -1900,6 +1929,19 @@ var p5SOUND = (function(){
     var x = Math.sin(xDeg * (Math.PI / 180));
     var z = Math.sin(zDeg * (Math.PI / 180));
     this.panner.setPosition(x, 0, z);
+  };
+
+  p5.prototype.Noise.prototype.amp = function(vol, t){
+    if (t) {
+      var rampTime = t || 0;
+      var currentVol = this.output.gain.value;
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(currentVol, this.p5s.audiocontext.currentTime);
+      this.output.gain.linearRampToValueAtTime(vol, rampTime + this.p5s.audiocontext.currentTime);
+    } else {
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(vol, this.p5s.audiocontext.currentTime);
+    }
   };
 
 // =============================================================================
@@ -2101,8 +2143,24 @@ var p5SOUND = (function(){
     }
   };
 
-  p5.prototype.AudioIn.prototype.amp = function(vol){
-    this.output.gain.value = vol;
+  /**
+   *  Set amplitude (volume) of a mic input between 0 and 1.0
+   *
+   *  @method  amp
+   *  @param  {Number} vol between 0 and 1.0
+   *  @param {Number} [time] ramp time (optional)
+   */
+  p5.prototype.AudioIn.prototype.amp = function(vol, t){
+    if (t) {
+      var rampTime = t || 0;
+      var currentVol = this.output.gain.value;
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(currentVol, this.p5s.audiocontext.currentTime);
+      this.output.gain.linearRampToValueAtTime(vol, rampTime + this.p5s.audiocontext.currentTime);
+    } else {
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(vol, this.p5s.audiocontext.currentTime);
+    }
   };
 
 
