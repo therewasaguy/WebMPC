@@ -7,6 +7,8 @@ var mic;
 var recorder;
 var fft;
 var pad1, pad2, pad3, pad4;
+var dragging = false; // global dragging var
+var wasDragging = false;
 
 var drumpad = function( sketch ) {
   var sample;
@@ -25,12 +27,20 @@ var drumpad = function( sketch ) {
   var rateLabel = createP();
   var volLabel = createP();
 
+  // to determine loop points in mouseDragged()
+  sketch.dragging = false;
+  sketch.startMarker;
+  sketch.stopMarker;
+
   sketch.setup = function() {
     cnv = sketch.createCanvas(400, 400);
     cnv.mousePressed(sketch.pressed);
     revButton.mousePressed(sketch.revBuffer);
     loopButton.mousePressed(sketch.toggleLoop);
     sketch.background(sketch.random(0,255));
+
+    sketch.startMarker = 0;
+    sketch.stopMarker = sketch.width; // canvas width;
   };
 
   sketch.draw = function() {
@@ -95,7 +105,68 @@ var drumpad = function( sketch ) {
     }
     if (mode !== 'rec') {
       sketch.drawBuffer();
+      sketch.drawPlayhead();
     }
+  };
+
+  sketch.drawPlayhead = function() {
+    if (sample && sample.isLoaded()) {
+      // draw playhead
+      sketch.stroke(0);
+      var playPercentage = map( sample.currentTime(), 0, sample.duration(), 0, sketch.width);
+      sketch.line(playPercentage, 0, playPercentage,sketch.height);
+
+      // draw start and stop markers
+      sketch.stroke(255,255,0);
+      // var startLine = map( startMarker, 0, sketch.width, 0, sample.duration());
+      // var stopLine = map( stopMarker, 0, sketch.width, 0, sample.duration());
+      sketch.line(sketch.startMarker, 0, sketch.startMarker,sketch.height);
+      sketch.line(sketch.stopMarker, 0, sketch.stopMarker,sketch.height);
+      // console.log(startLine);
+    }
+  };
+
+
+  sketch.mouseDragged = function(){
+    if (dragging === false && sketch.dragging === false && sketch.mouseY >=0 && sketch.mouseY <= sketch.height && sketch.mouseX >=0 && sketch.mouseX <= sketch.width){
+      sketch.tempMarker1 = sketch.mouseX;
+      sketch.dragging = true;
+      dragging = true; // global
+      wasDragging = true;
+    }
+  };
+
+  sketch.mouseReleased = function(){
+    if (sketch.dragging === true) { // && sketch.tempMarker1[0] >= 0 && sketch.tempMarker1[0] <= sketch.width) {
+      console.log('draggin');
+      sketch.tempMarker2 = sketch.mouseX;
+      sketch.dragging = false;
+      if (sketch.tempMarker2 < sketch.tempMarker1) {
+        var temp = sketch.tempMarker2;
+        sketch.tempMarker2 = sketch.tempMarker1;
+        sketch.tempMarker1 = temp;
+        if (sketch.tempMarker1 < 0) {
+          sketch.tempMarker1 = 0;
+        }
+        if (sketch.tempMarker2 > sketch.width) {
+          sketch.tempMarker2 = sketch.width;
+        }
+      }
+      sketch.startMarker = sketch.tempMarker1;
+      sketch.stopMarker = sketch.tempMarker2;
+      var sStart = map(sketch.startMarker, 0, sketch.width, 0, sample.duration());
+      var sEnd = map(sketch.stopMarker, 0, sketch.width, 0, sample.duration());
+        if (sStart < 0) {
+          sStart = 0;
+        }
+        if (sEnd > sample.duration()) {
+          sEnd = sample.durtion();
+        }
+      console.log(sStart + ', ' + sEnd);
+      sample.jump(sStart, sEnd)
+      // sample.jump()
+    }
+    dragging = false;
   };
 
   sketch.drawBackground = function() {
@@ -105,11 +176,16 @@ var drumpad = function( sketch ) {
       var alpha = floor(map(amp.getLevel(), 0, .2, 20, 50));
       alpha = constrain(alpha, 0,10);
       sketch.background(0,0,0, alpha);
-  }
+  };
 
   sketch.pressed = function() {
     if (mode === 'play' || mode === 'settings') {
-      sample.play();
+      if (wasDragging === true){
+        wasDragging = false;
+        console.log('was dragging no more')
+      } else {
+        sample.play();
+      }
     } else if (mode === 'rec') {
       if (recording === false) {
         sample.stopAll();

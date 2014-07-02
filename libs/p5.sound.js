@@ -435,10 +435,7 @@ var p5SOUND = (function(){
         } else {
           throw 'end time out of range'
         }
-      } else {
-        this.endTime = this.buffer.duration;
       }
-
 
       // make a new source
       this.source = this.p5s.audiocontext.createBufferSource();
@@ -805,20 +802,33 @@ var p5SOUND = (function(){
   };
 
   /**
-   * Move the playhead of the song to a position, in seconds 
+   * Move the playhead of the song to a position, in seconds. Start
+   * and Stop time. If none are given, will reset the file to play
+   * entire duration from start to finish.
    *
    * @for p5.sound:SoundFile
    * @method jump
    * @param {Number} cueTime    cueTime of the soundFile in seconds.
+   * @param {Number} endTime    endTime of the soundFile in seconds.
    */
-  p5.prototype.SoundFile.prototype.jump = function(cueTime) {
+  p5.prototype.SoundFile.prototype.jump = function(cueTime, endTime) {
     if (cueTime<0 || cueTime > this.buffer.duration) {
       throw 'jump time out of range';
     }
+    if (endTime<cueTime || endTime > this.buffer.duration) {
+      throw 'end time out of range';
+    }
     this.startTime = cueTime || 0;
+    if (endTime) {
+      this.endTime = endTime;
+    } else {
+      this.endTime = this.buffer.duration;
+    }
+
+    // this.endTime = endTime || this.buffer.duration;
     if (this.isPlaying()){
       this.stop();
-      this.play(cueTime);
+      this.play(cueTime, this.endTime);
     }
   };
 
@@ -1420,13 +1430,18 @@ var p5SOUND = (function(){
 
     // components
     this.oscillator = this.p5s.audiocontext.createOscillator();
-    this.oscillator.frequency.value = freq || 440;
+    this.f = freq || 440; // frequency
+    this.oscillator.frequency.value = this.f;
     this.oscillator.type = type || 'sine';
+    var o = this.oscillator;
 
     // connections
     this.input = this.p5s.audiocontext.createGain();
     this.output = this.p5s.audiocontext.createGain();
 
+    // param nodes for modulation
+    // this.freqNode = o.frequency;
+    this.ampNode = this.output.gain;
 
     // set default output gain
     this.output.gain.value = 0.5;
@@ -1455,7 +1470,7 @@ var p5SOUND = (function(){
    */
   p5.prototype.Oscillator.prototype.start = function(time) {
     if (!this.started){
-      var freq = this.oscillator.frequency.value;
+      var freq = this.f;
       var type = this.oscillator.type;
       // var detune = this.oscillator.frequency.value;
       this.oscillator = this.p5s.audiocontext.createOscillator();
@@ -1516,9 +1531,11 @@ var p5SOUND = (function(){
    *  </code></div>
    */
   p5.prototype.Oscillator.prototype.freq = function(val, t){
+    this.f = val;
     var rampTime = t || 0;
     this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
     this.oscillator.frequency.exponentialRampToValueAtTime(val, rampTime + this.p5s.audiocontext.currentTime);
+    this.freq
   };
 
   p5.prototype.Oscillator.prototype.getFreq = function(){
@@ -1596,6 +1613,60 @@ var p5SOUND = (function(){
 
   p5.prototype.SqrOsc.prototype = Object.create(p5.prototype.Oscillator.prototype);
 
+
+  /**
+   *  LFO is an oscillator designed to oscillate at a lower frequency
+   *  than humans can hear.
+   *  @param {[type]} freq [description]
+   *  @param {[type]} type [description]
+   */
+  p5.prototype.LFO = function(freq, type) {
+    this.started = false;
+    this.p5s = p5sound;
+
+    // connections
+    this.input = this.p5s.audiocontext.createGain();
+    this.output = this.p5s.audiocontext.createGain();
+
+    // components
+    this.oscillator = this.p5s.audiocontext.createOscillator();
+    this.oscillator.frequency.value = freq || 1;
+    this.oscillator.type = type || 'sine';
+
+    // set default output gain
+    this.output.gain.value = 1;
+
+    // connect to nothing by default
+    this.oscillator.connect(this.output);
+  };
+
+  p5.prototype.LFO.prototype = Object.create(p5.prototype.Oscillator.prototype);
+
+
+  p5.prototype.LFO.prototype.freqMod = function(unit){
+    unit.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit.oscillator.detune);
+  };
+
+  p5.prototype.LFO.prototype.ampMod = function(unit){
+    // unit.output.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit.output);
+  };
+
+  p5.prototype.LFO.prototype.disconnect = function(unit){
+    this.stop();
+    this.output.disconnect(unit);
+  };
+
+  p5.prototype.LFO.prototype.freq = function(val, t){
+    var rampTime = t || 0;
+    this.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.oscillator.frequency.exponentialRampToValueAtTime(val, rampTime + this.p5s.audiocontext.currentTime);
+  };
+
+  p5.prototype.LFO.prototype.amp = function(vol){
+    this.output.gain.value = vol;
+  };
 
   /**
    *  Creates a Pulse object, an oscillator that implements
