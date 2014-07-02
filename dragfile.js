@@ -33,7 +33,6 @@ function handleFileSelect(evt) {
   ctx = this.pCtx;
 
   loadBlob(file);
-  // document.getElementById('list').insertAdjacentHTML('beforeend', '<ul>' + fileType + '</ul>');
 }
 
 

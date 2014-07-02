@@ -19,7 +19,6 @@ var drumpad = function( sketch ) {
   var amp = new Amplitude();
 
   // settings for this pad
-  var newRate;
   var rateSlider = createSlider(0,100,29);
   var volSlider = createSlider(0,100,50);
   var revButton = createButton('Reverse');
@@ -31,6 +30,13 @@ var drumpad = function( sketch ) {
   sketch.dragging = false;
   sketch.startMarker;
   sketch.stopMarker;
+
+  // playback settings for the sound file
+  var sStart;
+  var sEnd;
+  var sRate = 1;
+  var sVol = 1;
+
 
   sketch.setup = function() {
     cnv = sketch.createCanvas(400, 400);
@@ -94,13 +100,13 @@ var drumpad = function( sketch ) {
       }
     } else if (mode === 'settings') {
       sketch.showSettings();
-      newRate = map( rateSlider.value() , 0, 100, .1831, 3);
-      sample.rate( newRate );
+      sRate = map( rateSlider.value() , 0, 100, .1831, 3);
+      sample.rate( sRate );
       volLabel.html('volume: ' + volSlider.value() + '%');
-      rateLabel.html('rate: ' + newRate.toFixed(2));
+      rateLabel.html('rate: ' + sRate.toFixed(2));
       // get volume from slider
-      var newVol = volSlider.value()/100;
-      sample.setVolume(newVol);
+      sVol = volSlider.value()/100;
+      sample.setVolume(sVol);
       sketch.drawBackground();
     }
     if (mode !== 'rec') {
@@ -122,7 +128,12 @@ var drumpad = function( sketch ) {
       // var stopLine = map( stopMarker, 0, sketch.width, 0, sample.duration());
       sketch.line(sketch.startMarker, 0, sketch.startMarker,sketch.height);
       sketch.line(sketch.stopMarker, 0, sketch.stopMarker,sketch.height);
-      // console.log(startLine);
+      sketch.fill(0,255,0,20);
+      if (sketch.startMarker <= sketch.stopMarker) {
+        sketch.rect(sketch.startMarker, 0, abs(sketch.startMarker - sketch.stopMarker), sketch.height);
+      } else {
+        sketch.rect(sketch.stopMarker, 0, abs(sketch.startMarker - sketch.stopMarker), sketch.height);
+      }
     }
   };
 
@@ -134,11 +145,14 @@ var drumpad = function( sketch ) {
       dragging = true; // global
       wasDragging = true;
     }
+    if (sketch.dragging === true){
+      sketch.stopMarker = sketch.tempMarker1;
+      sketch.startMarker = sketch.mouseX;
+    }
   };
 
   sketch.mouseReleased = function(){
-    if (sketch.dragging === true) { // && sketch.tempMarker1[0] >= 0 && sketch.tempMarker1[0] <= sketch.width) {
-      console.log('draggin');
+    if (sketch.dragging === true) {
       sketch.tempMarker2 = sketch.mouseX;
       sketch.dragging = false;
       if (sketch.tempMarker2 < sketch.tempMarker1) {
@@ -154,8 +168,9 @@ var drumpad = function( sketch ) {
       }
       sketch.startMarker = sketch.tempMarker1;
       sketch.stopMarker = sketch.tempMarker2;
-      var sStart = map(sketch.startMarker, 0, sketch.width, 0, sample.duration());
-      var sEnd = map(sketch.stopMarker, 0, sketch.width, 0, sample.duration());
+      sStart = map(sketch.startMarker, 0, sketch.width, 0, sample.duration());
+      sEnd = map(sketch.stopMarker, 0, sketch.width, 0, sample.duration());
+      console.log(sEnd + ', ' + sample.duration());
         if (sStart < 0) {
           sStart = 0;
         }
@@ -163,8 +178,7 @@ var drumpad = function( sketch ) {
           sEnd = sample.durtion();
         }
       console.log(sStart + ', ' + sEnd);
-      sample.jump(sStart, sEnd)
-      // sample.jump()
+      sample.jump(sStart, sEnd);
     }
     dragging = false;
   };
@@ -184,7 +198,7 @@ var drumpad = function( sketch ) {
         wasDragging = false;
         console.log('was dragging no more')
       } else {
-        sample.play();
+        sample.play(sRate, sVol, sStart, sEnd);
       }
     } else if (mode === 'rec') {
       if (recording === false) {
@@ -215,6 +229,8 @@ var drumpad = function( sketch ) {
 
   sketch.setBuffer = function(buf){
     sample.buffer = buf;
+    sStart = 0;
+    sEnd = buf.duration;
     recorder.clear();
   };
 
