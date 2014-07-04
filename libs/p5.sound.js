@@ -209,7 +209,32 @@ var p5SOUND = (function(){
     return p5sound.audiocontext;
   }
 
-  
+  /**
+   *  Returns the closest MIDI note value for
+   *  a given frequency.
+   *  
+   *  @param  {Number} frequency A freqeuncy, for example, the "A"
+   *                             above Middle C is 440Hz
+   *  @return {Number}   MIDI note value
+   */
+  p5.prototype.freqToMidi = function(f){
+    // var f = 69 + 12*log(F/(S*440))/log(2)
+    var mathlog2 = Math.log(f/440) / Math.log(2);
+    var m = Math.round(12*mathlog2)+57;
+    return m;
+  };
+
+  /**
+   *  Returns the frequency value of a MIDI note.
+   *  
+   *  @param  {Number} midiNote The number of a midi note,
+   *                            where Middle C = 60.
+   *  @return {Number} Frequency value of the given MIDI note
+   */
+  p5.prototype.midiToFreq = function(m) {
+    return 440 * Math.pow(2, (m-69)/12.0);
+  };
+
   /**
    * loadSound() should be used if you want to create a SoundFile 
    * during preload. It returns a new SoundFile from a specified
@@ -311,15 +336,6 @@ var p5SOUND = (function(){
 
     this.input = this.p5s.audiocontext.createGain();
     this.output = this.p5s.audiocontext.createGain();
-
-    /**
-     * The output volume (amplitude) of a sound file
-     * between 0.0 (silence) and 1.0 (full volume).
-     * Amplitudes over 1.0 may cause digital distortion.
-     *
-     * @property volume
-     */
-    this.volume = this.output.gain.value;
 
     this.reversed = false;
 
@@ -893,13 +909,27 @@ var p5SOUND = (function(){
     };
   };
 
-  p5.prototype.SoundFile.prototype.setVolume = function(vol) {
-    this.output.gain.value = vol;
-  };
-
-  p5.prototype.SoundFile.prototype.fade = function(vol, t) {
-    // TO DO
-    this.output.gain.linearRampToValueAtTime(vol, t)
+  /**
+   *  Multiply the output volume (amplitude) of a sound file
+   *  between 0.0 (silence) and 1.0 (full volume).
+   *  1.0 is the maximum amplitude of a digital sound, so multiplying by
+   *  greater than 1.0 may cause digital distortion.
+   *
+   *  @method  setVolume
+   *  @param {Number} volume  Volume (amplitude) between 0.0 and 1.0
+   *  @param {[Number]} time  Fade Time (optional) in seconds
+   */
+  p5.prototype.SoundFile.prototype.setVolume = function(vol, t) {
+    if (t) {
+      var rampTime = t || 0;
+      var currentVol = this.output.gain.value;
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(currentVol, this.p5s.audiocontext.currentTime);
+      this.output.gain.linearRampToValueAtTime(vol, rampTime + this.p5s.audiocontext.currentTime);
+    } else {
+      this.output.gain.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+      this.output.gain.setValueAtTime(vol, this.p5s.audiocontext.currentTime);
+    }
   };
 
   p5.prototype.SoundFile.prototype.add = function() {
@@ -1403,6 +1433,7 @@ var p5SOUND = (function(){
     // param nodes for modulation
     // this.freqNode = o.frequency;
     this.ampNode = this.output.gain;
+    this.freqNode = this.oscillator.frequency;
 
     // set default output gain
     this.output.gain.value = 0.5;
@@ -1428,9 +1459,12 @@ var p5SOUND = (function(){
    *  @method  start
    *  @param  {[Number]} time, in seconds from now.
    */
-  p5.prototype.Oscillator.prototype.start = function(time) {
+  p5.prototype.Oscillator.prototype.start = function(freq, time) {
+    if (this.started){
+      this.stop();
+    }
     if (!this.started){
-      var freq = this.f;
+      var freq = freq || this.f;
       var type = this.oscillator.type;
       // var detune = this.oscillator.frequency.value;
       this.oscillator = this.p5s.audiocontext.createOscillator();
@@ -1441,6 +1475,12 @@ var p5SOUND = (function(){
       this.started = true;
       time = time || this.p5s.audiocontext.currentTime;
       this.oscillator.start(time);
+      this.freqNode = this.oscillator.frequency;
+
+      // if LFO connections depend on this oscillator
+      if (this.mods !== undefined && this.mods.frequency !== undefined){
+        this.mods.frequency.connect(this.freqNode);
+      }
     }
   };
 
@@ -1561,6 +1601,17 @@ var p5SOUND = (function(){
     return this.panPosition;
   };
 
+  /**
+   *  Modulate any audio param.
+   *
+   *  @method  mod
+   *  @param  {Object} oscillator The param to modulate
+   */
+  p5.prototype.Oscillator.prototype.mod = function(unit){
+    unit.cancelScheduledValues(this.p5s.audiocontext.currentTime);
+    this.output.connect(unit);
+  };
+
   // Extending
   p5.prototype.SinOsc = function(freq) {
     p5.prototype.Oscillator.call(this, freq, 'sine');
@@ -1643,9 +1694,12 @@ var p5SOUND = (function(){
   };
 
 
-  p5.prototype.Pulse.prototype.start = function(time) {
+  p5.prototype.Pulse.prototype.start = function(freq, time) {
+    if (this.started){
+      this.stop();
+    }
     if (!this.started){
-      var freq = this.f;
+      var freq = freq || this.f;
       var type = this.oscillator.type;
       // var detune = this.oscillator.frequency.value;
       this.oscillator = this.p5s.audiocontext.createOscillator();
@@ -1663,6 +1717,14 @@ var p5SOUND = (function(){
       this.osc2.oscillator.frequency.exponentialRampToValueAtTime(freq, this.p5s.audiocontext.currentTime);
       this.osc2.oscillator.type = type;
       this.osc2.start(time);
+      this.freqNode = [this.oscillator.frequency, this.osc2.oscillator.frequency];
+
+      // if LFO connections depend on these oscillators
+      if (this.mods !== undefined && this.mods.frequency !== undefined){
+        this.mods.frequency.connect(this.freqNode[0]);
+        this.mods.frequency.connect(this.freqNode[1]);
+
+      }
     }
   };
 
@@ -1689,11 +1751,12 @@ var p5SOUND = (function(){
 // =============================================================================
 
   /**
-   *  LFO is an oscillator designed to oscillate at a lower frequency
-   *  than humans can hear, and to modulate a parameter. By default, it
-   *  does not connect to the master output, and oscillates at 1Hz. Use
-   *  freqMod() to modulate the frequency of another oscillator, ampMod()
-   *  to modulate the amplitude, and mod() to modulate any other parameter.
+   *  A Low Frequency Oscillator (LFO) oscillates at a lower frequency
+   *  than humans can hear, and is typically used to modulate a
+   *  parameter. By default this class not connect to the master output,
+   *  and oscillates at 1Hz. Use freqMod() to modulate the frequency of
+   *  another oscillator, ampMod() to modulate the amplitude, and mod()
+   *  to modulate any other Web Audio Param.
    *  
    *  @class Pulse
    *  @constructor
@@ -1730,13 +1793,27 @@ var p5SOUND = (function(){
    *  Pass in the oscillator whose frequency you want to
    *  modulate.
    *
-   *  @method  ampMod
+   *  @method  freqMod
    *  @param  {Object} oscillator The oscillator whose frequency will
    *                              be modulated.
    */
   p5.prototype.LFO.prototype.freqMod = function(unit){
     unit.oscillator.frequency.cancelScheduledValues(this.p5s.audiocontext.currentTime);
     this.output.connect(unit.oscillator.frequency);
+    // for Pulse
+    if (unit.oscillator.osc2){
+      this.output.connect(unit.osc2.oscillator.frequency);
+    }
+    // save the connections in case the oscillator doesn't exist
+    if (!unit.mods){
+      unit.mods = {};
+    }
+    unit.mods.frequency = this.output;
+    // also save a record of the connections in an array
+    if (this.connections == undefined) {
+      this.connections = [];
+    }
+    this.connections.push(unit.mods.frequency);
   };
 
   /**
@@ -1756,6 +1833,10 @@ var p5SOUND = (function(){
 
   p5.prototype.LFO.prototype.disconnect = function(unit){
     this.output.disconnect(unit);
+    // disassociate all connections that have been made with this LFO
+    for (var i = 0; i< this.connections.length; i++){
+      this.connections[i] = null;
+    }
   };
 
   p5.prototype.LFO.prototype.freq = function(val, t){
@@ -1877,6 +1958,9 @@ var p5SOUND = (function(){
   };
 
   p5.prototype.Noise.prototype.start = function() {
+    if (this.started){
+      this.stop();
+    }
     this.noise = this.p5s.audiocontext.createBufferSource();
     this.noise.buffer = this.buffer;
     this.noise.loop = true;
@@ -2134,7 +2218,7 @@ var p5SOUND = (function(){
    *  @private
    */
   p5.prototype.AudioIn.prototype._gotSources = function(sourceInfos) {
-    for (var i = 0; i!= sourceInfos.length; i++) {
+    for (var i = 0; i!== sourceInfos.length; i++) {
       var sourceInfo = sourceInfos[i];
       if (sourceInfo.kind === 'audio') {
         // add the inputs to inputSources
@@ -2163,5 +2247,109 @@ var p5SOUND = (function(){
     }
   };
 
+// =============================================================================
+//                              Env Class
+// =============================================================================
+
+  /**
+   *  Envelopes are pre-defined amplitude distribution over time. 
+   *  Typically, envelopes are used to control the output volume
+   *  of an object. This is the default behavior. However,
+   *  Envelopes can also be used to control any Web Audio Param.
+   *  
+   *  @class Env
+   *  @constructor
+   */
+
+  /**
+   *  Envelopes are pre-defined amplitude distribution over time. 
+   *  Typically, envelopes are used to control the output volume
+   *  of an object. This is the default behavior. However,
+   *  Envelopes can also be used to control any Web Audio Param.
+   *  
+   *  @class Env
+   *  @constructor
+   *  @param {Number} attackTime     Time (in seconds) before level
+   *                                 reaches attackLevel
+   *  @param {Number} attackLevel    Typically an amplitude between
+   *                                 0.0 and 1.0
+   *  @param {Number} decayTime      Time (in seconds) before level
+   *                                 reaches sustainLevel
+   *  @param {[Number]} sustainLevel Typically an amplitude between
+   *                                 0.0 and 1.0
+   *  @param {[Number]} sustainTime  Time (in seconds) to hold sustain,
+   *                                 before release begins
+   *  @param {[Number]} releaseTime  Time before level reaches
+   *                                 releaseLevel (or 0)
+   *  @param {[Number]} releaseTime  Release level (defaults to 0)
+   */
+  p5.prototype.Env = function(attackTime, attackLevel, decayTime, sustainLevel, sustainTime, releaseTime, releaseLevel){
+
+    /**
+     * @property attackTime
+     */
+    this.attackTime = attackTime;
+    /**
+     * @property attackLevel
+     */
+    this.attackLevel = attackLevel;
+    /**
+     * @property decayTime
+     */
+    this.decayTime = decayTime || 0;
+    /**
+     * @property sustainTime
+     */
+    this.sustainTime = sustainTime || 0;
+    /**
+     * @property sustainLevel
+     */
+    this.sustainLevel = sustainLevel || 0;
+    /**
+     * Time between level = sustainLevel and level = releaseLevel (or 0)
+     * @property releaseTime
+     */
+    this.releaseTime = releaseTime || 0;
+    /**
+     * Release level defaults to 0 (silence)
+     * @property releaseLevel
+     */
+    this.releaseLevel = releaseLevel || 0;
+  };
+
+  /**
+   *  Play tells the envelope to start acting on a given input.
+   *  If the input is a p5Sound object (i.e. AudioIn, Oscillator,
+   *  SoundFile), then Env will control its output volume.
+   *  Envelopes can also be used to control any Web Audio Param.
+   *
+   *  @param  {Object} input        A p5Sound object or
+   *                                Web Audio Param
+   */
+  p5.prototype.Env.prototype.play = function(input){
+    // assume we're talking about output gain, unless given a different audio param
+    if (input.output !== undefined){
+      input = input.output.gain;
+    }
+    var now =  p5sound.audiocontext.currentTime;
+    input.cancelScheduledValues(now);
+    input.setValueAtTime(0, now);
+    // attack
+    input.linearRampToValueAtTime(this.attackLevel, now + this.attackTime);
+    // decay to sustain level
+    input.linearRampToValueAtTime(this.sustainLevel, now + this.attackTime + this.decayTime);
+    // hold sustain level
+    input.setValueAtTime(this.sustainLevel, now + this.attackTime + this.decayTime + this.sustainTime);
+    // release
+    input.linearRampToValueAtTime(this.releaseLevel, now + this.attackTime + this.decayTime + this.sustainTime + this.releaseTime);
+  };
+
+  p5.prototype.Env.prototype.stop = function(input){
+    if (input.output !== undefined){
+      input = input.output.gain;
+    }
+    input.cancelScheduledValues(p5sound.audiocontext.currentTime);
+    input.setValueAtTime(0, p5sound.audiocontext.currentTime);
+  };
 
 })(); //call closure
